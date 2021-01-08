@@ -1,0 +1,12 @@
+.idea
+__pycache__
+*.pyc
+/evaluation/TestFiles/*
+/evaluation/QueryScript/*
+
+/poly_tmp
+/TestFiles
+../envDABAC
+*.db
+
+/Droit/data/*
