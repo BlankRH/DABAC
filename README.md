@@ -1,4 +1,4 @@
-# Droit_v2
+# DABAC
 
 This repository contains implementation and utility code for Droit project, version 2. 
 
