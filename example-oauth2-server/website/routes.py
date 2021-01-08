@@ -93,6 +93,8 @@ def create_client():
 @bp.route('/oauth/authorize', methods=['GET', 'POST'])
 def authorize():
     # for now, use ctest1 as a test user
+    print (current_user())
+    print (request)
     user = User.query.filter_by(username="test_user").first()
     """
     user = current_user()
@@ -115,6 +117,7 @@ def authorize():
     """
     # the authorization user consent process will happen from the directory side
     grant_user = user
+    print ("user is:", user)
     return authorization.create_authorization_response(grant_user=grant_user)
 
 
@@ -139,7 +142,10 @@ def api_me():
 @require_oauth('weather')
 def api_weather():
     user = current_token.user
-    weather = Weather.query.filter_by(id=0).first()
+    print (user.username)
+    # improve this function,,,,,
+    weather = Weather.query.filter_by(id=2).first()
     temperature = weather.get_temperature()
     rainfall = weather.get_rainfall()
+    print ("weather:", temperature, rainfall)
     return jsonify(id=user.id, username=user.username, temperature=temperature, rainfall=rainfall)
