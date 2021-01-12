@@ -8,6 +8,7 @@ __pycache__
 /TestFiles
 ../envDABAC
 *.db
+*.sqlite
 
 /Droit/data/*
 /data/*
