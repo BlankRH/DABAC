@@ -1,15 +1,19 @@
 # DABAC
 
-This repository contains implementation and utility code for Droit project, version 2. 
+DABAC stands for Directory-Based ABAC. 
 
 If you have any concerns or suggestions, please contact us at lyhao[AT]cs.columbia.edu. 
 
-Major modification from the prior version: build a web app and implement federated identity management, abandon the access control mechanism in the previous version. We haven't find a concerete access control mechanism yet.
+## History
 
-## Acknowledgement
-We would like to thank Yifan for his valuable input and contribution on the implementation of this  prototype. 
+This repository used to be named as "Droit_v2". It is changed to "GOLDIE" in accordance with the name in our paper. Therefore, the term "Droit" may appear in the source codes anyway.  
 
-## How to bootstrap the project
+As you can guess, there was a more sketchy and initial version named "Droit". Altough it shares basic insights of GOLDIE, it has been abandoned given some design flaws. Major modifications from that are: we build a web app and implement federated user identity management, however, the access control mechanism has been dropped off. Droit used a capability-based approach for access control with the help of JWT. Given the chanllenges in widely recognizing (i.e., forcing such a model is not very possible) and management (i.e., revoking delegated capabilities is knotty) through that approach, we want to leave it blank at this point (or leave it to each administration actually in GOLDIE).
+
+By the way, we haven't find a concerete access control mechanism in the proposed scenario yet. We are working on it, and hopefully a potential solution will be illustrated in a relevant paper in the near future. 
+
+
+## To bootstrap the project
 
 1. `git clone git@github.com:Halleloya/Droit_v2.git`.
 2. Install dependencies `pip install -r requirements.txt`.
@@ -23,6 +27,9 @@ To run a local directory in the current structure `python run.py --level [level 
 To run a single directory `python -m Droit.run`. It is easy and basically enough to test basic functions.
 
 Please note that you are supposed to change the [ip] and [port] manually in the `config.py` file, if needed. 
+
+To disable InsecureTransportError of OAuth2 (as https is required, but run with http in localhost when starting the third-party services): add `export OAUTHLIB_INSECURE_TRANSPORT=1` to your env/bin/activate, or just input this command everytime restart the virtual environment. Please be noted that you should never do that in your production. 
+
 
 ## A sample walk-through 
 
@@ -41,7 +48,10 @@ level6aaaaa level6aaaab ...
 
 By default, all the directoires run on localhost. The tree-like structure starts from port 5001, with the name of level1 (also called master directory or root directory). The single directory module named SingleDirectory runs on port 4999.
 
-MongoDB runs on its default port 27017. 
+MongoDB runs on its default port 27017. To run MongoDB on another port: add `--port [port]` when starting the database, and change the configure files to direct apps to database. 
+
+To release all the ports occupied by directories: `sudo kill -9 $(lsof -i:5001 -i:5002 -i:5003 -i:5004 -i:5005 -i:5006 -i:5007 -i:5008 -t)`.
+
 
 ## Authentication
 
@@ -75,12 +85,16 @@ To illustrate how to configure it, we give an example that level3aa provides a m
 
 
 
+
 ## Attribute Based Access Control (ABAC)
-The ABAC system can be used to specify in what conditions a thing can be accessed. Rules are specified in policies and requests are automatically generated when user request throught the web user interface. Details about policy formats can be found from py_abac documentations. By default, requests are denied if there are no policies associated. When there is a conflict, the policy with highest priority dominates. 
+The ABAC system can be used to specify in what conditions a thing can be accessed. Access rules are specified as policies, and requests are automatically generated when users request through the provided interfaces. Details about policy formats can be found from the py_abac library. By default, requests are denied if there are no policies associated. When there is a conflict, the policy with highest priority dominates. 
 
 
 ## Attribute Authorization System
 The attribute authorization system can be used to retrieve attribute information from various resource providers. The authorization process is triggered by the "Authorize" button under "Attributes". The system identities and classifies the attributes required by the associated policies in the IoT directory. The user will be redirected to the user consent page, where they can choose the attribute what they allow the ABAC system to access. The authorization and data retrieval process can be done iteratively.
 
-Currently, the system supports two types of attributes- user attributes (OIDC provider) and environmental attributes (example-oauth2-server). "example-oauth2-server" is a sample resource provider, which contains weather information including temperature and rainfall. The configuration for the oauth client is stored in "providers_config.py", which is client register under the username "test_user". Run the sample server by `python app.py` in the "example-oauth2-server" directory. The sample server runs on port 5100. Note: In current setting, you need to run `export AUTHLIB_INSECURE_TRANSPORT=1` in command line before starting the server.
+Currently, the system supports three types of attributes: subject (user) attributes (OIDC provider), object attributes (TDs), and environmental attributes (example-oauth2-server). "example-oauth2-server" is a sample resource provider, which contains any information through third-parties (e.g., weather information including temperature and rainfall). The configuration for the oauth client is stored in "providers_config.py", which is client register under the username "test_user". Run the sample server by `python app.py` in the "example-oauth2-server" directory. The sample server runs on port 5100. 
 
+
+## Acknowledgement
+We would like to thank Yifan for his valuable input and contribution on the implementation of this  prototype. 
