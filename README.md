@@ -101,7 +101,7 @@ redirect uri: `http://localhost:5004/auth/info_authorize`. allowed scope: `weath
 
 After generating the client, put the client info to the "Droit/auth/providers_config.py".
 
-To test the policy which require attributes from third parties, you should ensure that "test_user" has such attributes in the database (manually insert before access). 
+To test the policy which require attributes from third parties, you should ensure that the current user (e.g., "test_user") has such attributes in the database (manually insert before access). 
 
 ## Acknowledgement
 We would like to thank Yifan for his valuable input and contribution on the implementation of this  prototype. 
