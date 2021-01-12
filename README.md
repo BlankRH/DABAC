@@ -28,7 +28,7 @@ To run a single directory `python -m Droit.run`. It is easy and basically enough
 
 Please note that you are supposed to change the [ip] and [port] manually in the `config.py` file, if needed. 
 
-To disable InsecureTransportError of OAuth2 (as https is required, but run with http in localhost when starting the third-party services): add `export OAUTHLIB_INSECURE_TRANSPORT=1` to your env/bin/activate, or just input this command everytime restart the virtual environment. Please be noted that you should never do that in your production. 
+To disable InsecureTransportError of OAuth2 (as https is required, but run with http in localhost when starting the third-party services): add `export OAUTHLIB_INSECURE_TRANSPORT=1` and `export AUTHLIB_INSECURE_TRANSPORT=1` to your env/bin/activate, or just input this command everytime restart the virtual environment. Please be noted that you should never do that in your production. 
 
 
 ## A sample walk-through 
@@ -93,8 +93,15 @@ The ABAC system can be used to specify in what conditions a thing can be accesse
 ## Attribute Authorization System
 The attribute authorization system can be used to retrieve attribute information from various resource providers. The authorization process is triggered by the "Authorize" button under "Attributes". The system identities and classifies the attributes required by the associated policies in the IoT directory. The user will be redirected to the user consent page, where they can choose the attribute what they allow the ABAC system to access. The authorization and data retrieval process can be done iteratively.
 
-Currently, the system supports three types of attributes: subject (user) attributes (OIDC provider), object attributes (TDs), and environmental attributes (example-oauth2-server). "example-oauth2-server" is a sample resource provider, which contains any information through third-parties (e.g., weather information including temperature and rainfall). The configuration for the oauth client is stored in "providers_config.py", which is client register under the username "test_user". Run the sample server by `python app.py` in the "example-oauth2-server" directory. The sample server runs on port 5100. 
+Currently, the system supports three types of attributes: subject (user) attributes (OIDC provider), object attributes (TDs), and environmental attributes (example-oauth2-server). "example-oauth2-server" is a sample resource provider, which contains any information through third-parties (e.g., weather information including temperature and rainfall). The configuration for the oauth client is stored in "Droit/auth/providers_config.py", which is client register under the username "test_user". Run the sample server by `python app.py` in the "example-oauth2-server" directory. The sample server runs on port 5100. 
 
+### Note
+To test the authorization system, we need some sort of manually inputs. 
+redirect uri: `http://localhost:5004/auth/info_authorize`. allowed scope: `weather`. allowed grant type: `authorization_code`. allowed response type: `code`.
+
+After generating the client, put the client info to the "Droit/auth/providers_config.py".
+
+To test the policy which require attributes from third parties, you should ensure that "test_user" has such attributes in the database (manually insert before access). 
 
 ## Acknowledgement
 We would like to thank Yifan for his valuable input and contribution on the implementation of this  prototype. 

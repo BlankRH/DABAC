@@ -64,6 +64,7 @@ class OAuth2Token(db.Model, OAuth2TokenMixin):
 
 class Weather(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(40), unique=True)
     temperature = db.Column(db.Integer)
     rainfall = db.Column(db.Integer)
 

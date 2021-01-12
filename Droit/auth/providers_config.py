@@ -21,8 +21,8 @@ providers_config = {
     # providers for level1 directory.
     "level1": {
         "level2a": {
-            "client_id": 'K9QDpNBHJMC49JD7bEAmTADl',
-            "client_secret": 'JP4AnDG8kJTr6cVmNwkgSwzCgLue003hPoqPfGx8sfup3Diq',
+            "client_id": 'm8d8ZjrMRQNuupmNsJT5m0qT',
+            "client_secret": 'kRDS2qX47fcA3Oc9DPOvWg7TrUMFYPJDw5LYO7obVegYbMLN',
             "access_token_url": 'http://localhost:5002/auth/oidc_token',
             "access_token_params": None,
             "authorize_url": 'http://localhost:5002/auth/oidc_authorize',
@@ -70,8 +70,8 @@ providers_config = {
 
 oauth2_server_config = {
     "server_url": "http://127.0.0.1:5100",
-    "client_id": "hLfVy4BYOwpxsGWfFXOQLmkB",
-    "client_secret": "RlbEeLUYFUQWFdRICf5zGXg83B4eLu5sDDKJgbTejTKEKwAz",
+    "client_id": "1WCyaYBeXRKDM4Vvf1nUseJm",
+    "client_secret": "dyaIWavG7IdgkrdkiX8BwNKvRaxMru6NjnQcAn8Wb5JOFA4z",
     "grant_type": "authorization_code",
     "response_type": "code",
     "scope": "weather",

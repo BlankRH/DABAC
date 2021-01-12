@@ -144,7 +144,7 @@ def api_weather():
     user = current_token.user
     print (user.username)
     # improve this function,,,,,
-    weather = Weather.query.filter_by(id=2).first()
+    weather = Weather.query.filter_by(username=user.username).first()
     temperature = weather.get_temperature()
     rainfall = weather.get_rainfall()
     print ("weather:", temperature, rainfall)

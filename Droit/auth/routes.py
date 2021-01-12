@@ -424,7 +424,7 @@ def server_auth_request(server_config):
     scope = server_config["scope"]
     redirect_url = server_url + "/oauth/authorize?" \
                    + "response_type=" + server_config["response_type"] \
-                   + "&client_id=" + client_id + "&scope=" + scope
+                   + "&client_id=" + client_id + "&scope=" + scope # + "&username=" + 
     # change 'info_authorize' to 2 to indicate server authorization started
     session['info_authorize'] = 2
     return redirect(redirect_url, code=302)
