@@ -422,9 +422,11 @@ def server_auth_request(server_config):
     server_url = server_config["server_url"]
     client_id = server_config["client_id"]
     scope = server_config["scope"]
+    print ("current_user: ", current_user.get_username())
     redirect_url = server_url + "/oauth/authorize?" \
                    + "response_type=" + server_config["response_type"] \
-                   + "&client_id=" + client_id + "&scope=" + scope # + "&username=" + 
+                   + "&client_id=" + client_id + "&scope=" + scope + "&username=" \
+                   + current_user.get_username() # send username along the requests to third party
     # change 'info_authorize' to 2 to indicate server authorization started
     session['info_authorize'] = 2
     return redirect(redirect_url, code=302)
