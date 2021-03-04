@@ -66,7 +66,8 @@ def main(init_db=True, debug=True, host='localhost'):
         clear_database()
         init_dir_to_url('SingleDirectory')
         init_target_to_child_name('SingleDirectory')
-    app.run(debug = debug, host= host, port= app.config["PORT"])
-    
+    app.run(debug=debug, host=host, port=app.config["PORT"])
+
+
 if __name__ == "__main__":
     main()

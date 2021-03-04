@@ -5,9 +5,10 @@ import flask
 import jwcrypto.jwk as jwk
 import jwt
 from urllib.parse import urljoin
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
 from py_abac.pdp import EvaluationAlgorithm
-from .models import DirectoryNameToURL, TargetToChildName
+from .models import DirectoryNameToURL, TargetToChildName, ThingDescription
 from flask_login import current_user
 from .auth.models import auth_user_attr_default, auth_server_attr_default
 from .auth import User, AuthAttribute
@@ -16,6 +17,8 @@ from py_abac.storage.mongo import MongoStorage
 from py_abac import PDP, Policy, AccessRequest
 from py_abac.provider.base import AttributeProvider
 import re
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 
 def is_json_request(request: flask.Request, properties: list = []) -> bool:
@@ -38,6 +41,7 @@ def is_json_request(request: flask.Request, properties: list = []) -> bool:
         if prop not in body:
             return False
     return True
+
 
 def clean_thing_description(thing_description: dict) -> dict:
     """Change the property name "@type" to "thing_type" and "id" to "thing_id" in the thing_description
@@ -101,7 +105,7 @@ def add_policy_to_storage(policy: dict, location: str) -> bool :
     #json = request.get_json()
     policy = Policy.from_json(policy)
     client = MongoClient()
-    storage = MongoStorage(client, db_name = location)
+    storage = MongoStorage(client, db_name=location)
     try:
         storage.add(policy)
     except:
@@ -114,8 +118,8 @@ def delete_policy_from_storage(request : flask.Request)  -> bool :
 
     Args:
         The function uses HTTP request directly. These argument must be contained in the request:
-        uid (str): uid of the policy
-        location (str): location the policy is stored
+        request.uid (str): uid of the policy
+        request.location (str): location the policy is stored
 
     Returns:
         True if the removal is successful. 
@@ -142,39 +146,49 @@ def is_request_allowed(request: flask.Request) -> bool:
         1/0 (int): indicating a request is allowed or not
 
     """
-    class ThingAttributeProvider(AttributeProvider):
-        def get_attribute_value(self, ace, attribute_path, ctx):
-            if ace == "resource" and attribute_path == "$.thing_type":
-                thing_type = request.get_json().get("thing_type", None)
-                print("(ThingAttributeProvider) thing_type: ", thing_type)
-                return thing_type
-            return None
 
-    class UserIdAttributeProvider(AttributeProvider):
-        def get_attribute_value(self, ace, attribute_path, ctx):
-            if not current_user:
-                return None
-            if ace == "subject" and attribute_path == "$.id":
-                return current_user.get_user_id()
-            return None
-            
-    class EmailAttributeProvider(AttributeProvider):
-        def get_attribute_value(self, ace, attribute_path, ctx):
-            user_id = ctx.get_attribute_value("subject", "$.id")
-            if not user_id:
-                return None
-            if ace == "subject" and attribute_path == "$.email":
-                user = User.query.filter_by(id=user_id).first()
-                user_email = user.get_email()
-                return user_email
-            return None
+    request_json = request.get_json()
+    thing_id = request_json['thing_id']
+    policy_location = request_json['location']
+    try:
+        user_id = current_user.get_user_id()
+        user = User.query.filter_by(id=user_id).first()
+        user_email = user.get_email()
+    except:
+        user_id = ""
+        user_email = ""
     
     class TimestampAttributeProvider(AttributeProvider):
-        def get_attribute_value(self, ace, attribute_path,ctx):
-            print(f"accessed 1, timestamp")
+        def get_attribute_value(self, ace, attribute_path, ctx):
             if attribute_path == "$.timestamp":
                 print(f"accessed, current timestamp:{datetime.now().timestamp()}")
                 return datetime.now().timestamp()
+            return None
+
+    class GeoAttributeProvider(AttributeProvider):
+        def get_attribute_value(self, ace: str, attribute_path: str, ctx: 'EvaluationContext'):
+            if ace == "subject" and attribute_path == "$.geo":
+                return [-74, 40]
+            return None
+
+    class TimespanAttributeProvider(AttributeProvider):
+        def get_attribute_value(self, ace: str, attribute_path: str, ctx: 'EvaluationContext'):
+            if ace == 'resource' and attribute_path[:10] == '$.timespan':
+                timespan = int(attribute_path.partition(': ')[2])
+                start = datetime.utcnow() - timedelta(seconds=timespan)
+                thing_obj = ThingDescription.objects(thing_id=thing_id).first()
+                cnt = 0
+                print("start: ", str(start))
+                if str(user_id) in thing_obj.timestamps:
+                    for timestamp in thing_obj.timestamps[str(user_id)][::-1]:
+                        print(timestamp)
+                        if timestamp < start:
+                            break
+                        cnt += 1
+                    print(cnt)
+                    return cnt
+                else:
+                    return 0
             return None
 
     class OtherAttributeProvider(AttributeProvider):
@@ -183,6 +197,7 @@ def is_request_allowed(request: flask.Request) -> bool:
             attr_name = re.search("[a-zA-Z_]+", attribute_path).group().lower()
             print("attribute_path: ", attribute_path)
             print("attr_name: ", attr_name)
+
             auth_attributes = get_auth_attributes()
             auth_user_attributes = auth_attributes[0]
             auth_server_attributes = auth_attributes[1]
@@ -190,39 +205,30 @@ def is_request_allowed(request: flask.Request) -> bool:
             print("attr_value: ", attr_value)
             return attr_value
 
-    request_json = request.get_json()
-    thing_id = request_json['thing_id']
-    policy_location = request_json['location']
-
     client = MongoClient()
     storage = MongoStorage(client, db_name=policy_location)
     pdp = PDP(storage, EvaluationAlgorithm.HIGHEST_PRIORITY,
-              [ThingAttributeProvider(), EmailAttributeProvider(), UserIdAttributeProvider(),
-               TimestampAttributeProvider(), OtherAttributeProvider()])
+              [TimestampAttributeProvider(), TimespanAttributeProvider(), OtherAttributeProvider()])
 
     access_request_json = {
         "subject": {
-            "id": '', 
-            "attributes": {}
+            "id": str(user_id),
+            "attributes": {"email": str(user_email)}
         },
         "resource": {
             "id": str(thing_id), 
-            "attributes": {}
+            "attributes": {"thing_type": request.get_json().get("thing_type", None)}
         },
         "action": {
             "id": "", 
             "attributes": {"method": "get"}
         },
         "context": {
-            "timestamp": {}
         }
     }
 
     access_request = AccessRequest.from_json(access_request_json)
-    if pdp.is_allowed(access_request):
-        return 1
-    else:
-        return 0
+    return pdp.is_allowed(access_request)
 
 
 def set_auth_user_attr(attr_name, attr_value):

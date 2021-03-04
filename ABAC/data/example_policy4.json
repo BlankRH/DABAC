@@ -1,0 +1,14 @@
+{"description": "Allow within polygon",
+    "effect": "allow",
+    "rules": {
+        "subject": [{"id": {"condition": "RegexMatch", "value": ".*"}}],
+        "resource": [{"$.timespan: 10": {"condition": "Lte", "value": 1}}],
+        "action": [{"$.method": {"condition": "Equals", "value": "create"}},
+                   {"$.method": {"condition": "Equals", "value": "delete"}},
+                   {"$.method": {"condition": "Equals", "value": "get"}}],
+        "context": {}
+    },
+    "targets": {},
+    "priority": 1
+}
+

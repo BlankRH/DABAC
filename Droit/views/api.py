@@ -7,16 +7,21 @@ import jwt
 from flask import Blueprint, request, url_for, redirect, Response, make_response, jsonify, session, render_template
 from flask import current_app as app
 from flask_login import current_user as user
-from py_abac import PDP, AccessRequest, Policy
-from urllib.parse import urljoin, urlencode
+from py_abac import Policy
+from urllib.parse import urlencode
 from ..models import ThingDescription, DirectoryNameToURL, TypeToChildrenNames, TargetToChildName
-from ..utils import get_target_url, is_json_request, clean_thing_description, add_policy_to_storage,\
-    delete_policy_from_storage, is_policy_request, is_request_allowed, get_auth_attributes, set_auth_user_attr,\
+from ..utils import get_target_url, is_json_request, clean_thing_description, add_policy_to_storage, \
+    delete_policy_from_storage, is_policy_request, is_request_allowed, get_auth_attributes, set_auth_user_attr, \
     generate_jwt
+from flask_login import current_user
 from pymongo import MongoClient
 from py_abac.storage.mongo import MongoStorage
 from ..auth.models import auth_db, Policy
 from datetime import datetime
+
+from .frequency import add_frequency
+from .broadcast import delete_local_thing_description, push_up_things, parent_aggregation, get_children_result
+from .data_helper import deduplicate_by_id, get_compressed_list, get_final_aggregation
 
 ERROR_JSON = {"error": "Invalid request."}
 ERROR_POLICY = {"error": "Invalid policy."}
@@ -24,195 +29,6 @@ ERROR_NO_USER = {"error": "Please login."}
 OPERATION_COUNT = ""
 
 api = Blueprint('api', __name__)
-
-def delete_local_thing_description(thing_id: str) -> bool:
-    """Delete the thing description with the specific 'thing_id' in local directory and return whether the deletion is complete.
-
-    This is the function that perform the real thing description deletion oepration. It will do it locally by deleting the 
-    thing description specified by `thing_id` field. If the to-be-delete thing description has publicity larger than 1, it 
-    will send addition request to its parent directory to totally remove the record. This is a recursive request and only
-    until its finished, this function should return.
-
-    Args:
-        thing_id (str): ID for thing description to be deleted
-
-    Return:
-        bool: True if the deletion is complete, if any error happens in the whole prcesss, then return False
-    """
-    delete_thing = ThingDescription.objects(thing_id=thing_id).first()
-    if delete_thing is None:
-        return True
-    delete_thing.delete()
-    # 1. if the publicity is larger than 0, it needs to recursively delete the thing in parent's directory
-    if delete_thing.publicity > 0:
-        delete_up_things(delete_thing.thing_id)
-    # 2. if current directory has no other thing_description of this type,
-    # should update parent's aggregation information to delete this one
-    dir_remaining_count = ThingDescription.objects(
-        thing_type=delete_thing.thing_type).count()
-    if dir_remaining_count == 0:
-        delete_parent_aggregation(
-            delete_thing.thing_type, app.config['HOST_NAME'])
-    return True
-
-
-def push_up_things(thing_description: dict, publicity: int) -> bool:
-    """Send register request to parent directory, only if the publicity is larger than 0 and current directory has parent
-
-    Args:
-        thing_description (dict): the thing description may need to be pushed up
-        publicity (int): how many levels the thing needs to be pushed up
-
-    Return:
-        bool: boolean value indicating the push up result. If succeed, return True, otherwise False
-    """
-    parent_directory = DirectoryNameToURL.objects(
-        relationship='parent').first()
-    # 1. only do push-up when the publicity is larger than 0, and it has parent
-    if publicity == 0 or parent_directory is None:
-        return True
-
-    # 2. send push up request to the parent url
-    parent_url = urljoin(parent_directory.url, url_for('api.register'))
-    request_data = {
-        "td": thing_description,
-        "location": parent_directory.directory_name,
-        "publicity": publicity - 1
-    }
-
-    response = requests.post(parent_url, data=json.dumps(request_data), headers={
-        'Content-Type': 'application/json',
-        'Accept-Charset': 'UTF-8'
-    })
-
-    return response.status_code == 200
-
-
-def delete_up_things(thing_id: str) -> bool:
-    """Send delete request to parent's directory's /delete API, asking to delete the thing description.
-    
-    Args:
-        thing_id (str): Unique identifer of thing description that specify the thing description to be deleted. 
-    Return:
-        bool: True if the deletion is complete, otherwise False.
-    """
-    parent_dir = DirectoryNameToURL.objects(relationship='parent').first()
-    response = None
-    if parent_dir is not None:
-        query_parameters = urlencode(
-            {"location": parent_dir.directory_name, "thing_id": thing_id})
-        request_url = f"{urljoin(parent_dir.url, url_for('api.delete'))}?{query_parameters}"
-        try:
-            response = requests.delete(request_url)
-        except:
-            return False
-    return response is None or response.status_code == 200
-
-
-def add_parent_aggregation(thing_type: str, location: str) -> bool:
-    """Send a post request to parent's directory to update the aggregation data.
-
-    Args:
-        thing_type(str): Specify the type of the aggregation.
-        location(str): the directory name that the aggregation should be using to update.
-
-    Returns:
-        bool: True if the update is complete, otherwise False.
-    :return: boolean value indicating the update result. return True if update successfully
-    """
-
-    parent_dir = DirectoryNameToURL.objects(relationship='parent').first()
-    if parent_dir is None:
-        return True
-
-    request_body = {"location": location, "thing_type": thing_type}
-    request_url = urljoin(parent_dir.url, url_for(
-        'api.update_type_aggregation'))
-
-    response = requests.post(request_url, data=json.dumps(request_body), headers={
-        'Content-Type': 'application/json',
-        'Accept-Charset': 'UTF-8'
-    })
-
-    return response.status_code == 200
-
-
-def delete_parent_aggregation(thing_type: str, location: str) -> bool:
-    """Send delete request to parent's [update_type_aggregation] API to update aggregation
-    
-    Args:
-        thing_type (str): The thing type needs to be updated.
-        location (str): Which directory name should be removed in the aggregation.
-
-    Returns:
-        bool: True when the delete aggregation operation is successful. Otherwise False.
-    """
-    # 1. if it has no parent directory, terminate the call
-    parent_dir = DirectoryNameToURL.objects(relationship='parent').first()
-    if parent_dir is None:
-        return True
-    query_parameters = urlencode(
-        {"location": location, "thing_type": thing_type})
-    request_url = f"{urljoin(parent_dir.url, url_for('api.update_type_aggregation'))}?{query_parameters}"
-    try:
-        response = requests.delete(request_url)
-    except:
-        return False
-
-    return response == 200
-
-
-def get_children_result(thing_type: str, api: str, query_string: str) -> list:
-    """Get thing descriptions from all children directories and return the result
-
-    This operation is done recursively using a DFS serach algorithm. The request is sent to the endpoint of
-    children directory specified by `api` argument along with `query_string` as the query parameters. 
-    If `thing_type` is specified, then only thing descriptions matching the `thing_type` argument is collected.
-    
-    Args:
-        thing_type(str): Type of thing descriptions to return. Is this is missing, then no filtering will be doing.
-        api(str): The API endpoint of the children directories.
-        query_string(str): Query string of the of the requests sent to children directories.
-    
-    Returns:
-        list: the list of thing descriptions that meet the filter condition. Each thing description is a dict object.
-    """
-    children_directories = DirectoryNameToURL.objects(
-        relationship='child').all()
-    # Get children names that contains only the 'thing_type' accroding to the aggregation stats
-    descendant_names_with_type = TypeToChildrenNames.objects(thing_type=thing_type).first() \
-        if thing_type is not None else TypeToChildrenNames.objects.first()
-    descendant_to_child_mappings = TargetToChildName.objects().all()
-    # Send request to each child node that has thing desciriptions with this [thing_type] and get result as a list
-    result_list = []
-    if children_directories is not None and descendant_names_with_type is not None:
-        child_name_to_url_map = {
-            child_directory.directory_name: child_directory.url for child_directory in children_directories
-        }
-        if descendant_to_child_mappings is not None:
-            for mapping in descendant_to_child_mappings:
-                child_name_to_url_map[mapping.target_name] = child_name_to_url_map[mapping.child_name]
-
-        for descendant_directory_name in descendant_names_with_type.children_names:
-            child_url = child_name_to_url_map[descendant_directory_name]
-            para_dict = dict(k.split('=') for k in query_string.split('&'))
-            if 'location' in para_dict.keys():
-                # tmpstr = query_string.split('&', 1)[1]
-                # new_query_string = f"location={descendant_directory_name}&{tmpstr}"
-                para_dict['location'] = descendant_directory_name
-                new_query_string = urlencode(para_dict)
-                request_url = f"{urljoin(child_url, api)}?{new_query_string}"
-            else:
-                request_url = f"{urljoin(child_url, api)}?{query_string}"
-            response = requests.get(request_url)
-            if response.status_code != 200:
-                continue
-            child_result = response.json()
-            if type(child_result) == list:
-                result_list.extend(child_result)
-            else:
-                result_list.append(child_result)
-    return result_list
 
 
 @api.route('/register', methods=['POST'])
@@ -253,24 +69,22 @@ def register():
     if local_server_name == location:
         thing_description = clean_thing_description(thing_description)
 
-        push_up_result = True
-        aggregation_result = True
-        registration_result = True
         # 3a. register locally
         # when this API is called by 'relocate', publicity is in the thing_description object
         # remove it to avoid duplicate key error when creating new object
-        if "publicity" in thing_description:
-            del thing_description["publicity"]
+        registration_result = True
+        thing_description.pop("publicity", None)
+        thing_description['timestamps'] = {}
         new_td = ThingDescription(publicity=publicity, **thing_description)
         try:
             new_td.save()
-        except Exception as e:
+        except:
             registration_result = False
 
         # 3b. push up thing description and update parent directory's aggregation data
         push_up_result = push_up_things(thing_description, publicity)
-        aggregation_result = add_parent_aggregation(
-            thing_description["thing_type"], local_server_name)
+        aggregation_result = parent_aggregation("add",
+                                                thing_description["thing_type"], local_server_name)
 
         # 3c. return result
         if push_up_result and registration_result and aggregation_result:
@@ -283,7 +97,7 @@ def register():
 
     target_url = get_target_url(location, register_api)
 
-    # check if any of above condition is satisified
+    # check if any of above condition is satisfied
     if target_url is not None:
         master_response = requests.post(
             target_url, data=json.dumps(body), headers=headers)
@@ -291,6 +105,7 @@ def register():
 
     # Otherwise the input location is invalid, return
     return jsonify(ERROR_JSON), 400
+
 
 @api.route('/policy', methods=['POST'])
 def policy():
@@ -307,7 +122,7 @@ def policy():
     """
 
     # 1-2. check and parse input
-    if not is_json_request(request, ["td","location"]):
+    if not is_json_request(request, ["td", "location"]):
         return jsonify(ERROR_JSON), 400
 
     json = request.get_json()
@@ -319,7 +134,7 @@ def policy():
     uid = str(uuid.uuid4())
     if not is_policy_request(policy_json, ["description", "effect", "rules", "targets", "priority"]):
         return jsonify(ERROR_POLICY), 400
-    
+
     if not user.get_id():
         return jsonify(ERROR_NO_USER), 400
     policy_json['uid'] = uid
@@ -331,7 +146,7 @@ def policy():
         auth_db.session.add(new_policy)
         auth_db.session.commit()
         return make_response("Created Policy", 200)
-    
+
     return jsonify(ERROR_JSON), 400
 
 
@@ -405,10 +220,11 @@ def policy_decision():
     """
     if not is_json_request(request, ["thing_id", "thing_type", "action"]):
         return jsonify(ERROR_JSON), 400
-    code = is_request_allowed(request)
-    if code == 1:
+    if is_request_allowed(request):
+        if not current_user.is_anonymous:
+            add_frequency(request.get_json()["thing_id"], str(current_user.get_user_id()))
         return make_response("Request Succeed", 200)
-    elif code == 0:
+    else:
         return jsonify({"id": user.get_id()}), 400
 
 
@@ -437,11 +253,11 @@ def delete_policy():
     if delete_policy_from_storage(request):
         request_json = request.get_json()
         uid = request_json['uid']
-        Policy.query.filter(Policy.uid==uid).delete()
+        Policy.query.filter(Policy.uid == uid).delete()
         auth_db.session.commit()
         return make_response("Policy Deleted", 200)
     else:
-        return make_response("Error Occured", 400)
+        return make_response("Error Occurred", 400)
 
 
 @api.route('/update_aggregate', methods=['POST', 'DELETE'])
@@ -452,8 +268,8 @@ def update_type_aggregation():
     Otherwise it will delegate the operation to the next possible directory (if there is ), and return whatever the result it receives
 
     Args:
-        thing_type (str): the type of the thing description may need to be updated.
-        location (str): specify where the update operation should be done.
+        request.thing_type (str): the type of the thing description may need to be updated.
+        request.location (str): specify where the update operation should be done.
 
     Returns:
         HTTP Response: a brief string explaining the result and corresponding HTTP status code.
@@ -481,7 +297,7 @@ def update_type_aggregation():
 
         children_locations.save()
         # 4. recursively update the aggregation data at parent's directory
-        add_parent_aggregation(thing_type, location)
+        parent_aggregation('add', thing_type, location)
 
     elif request.method == 'DELETE':
         location = request.args.get('location')
@@ -494,15 +310,15 @@ def update_type_aggregation():
         if children_locations is not None:
             children_locations.children_names.remove(location)
             children_locations.save()
-            # recursivly delete parent's aggregation data for the same record
-            delete_parent_aggregation(thing_type, location)
+            # recursively delete parent's aggregation data for the same record
+            parent_aggregation('delete', thing_type, location)
 
-    return make_response("Update aggregation data succesfully.", 200)
+    return make_response("Update aggregation data successfully.", 200)
 
 
 @api.route('/adjacent_directory')
 def adjacent_directory():
-    """Retured the neighbor(one-level apart) and master directory names and URIs of the current directory.
+    """Returned the neighbor(one-level apart) and master directory names and URIs of the current directory.
 
     Returns:
         HTTP Response: a list of directory information in JSON format with HTTP status 200
@@ -547,8 +363,9 @@ def search():
 
         thing_list = []
         # 1. add result in current directory
-        local_things = json.loads(ThingDescription.objects(thing_type=thing_type).to_json()) if thing_type is not None else \
-            json.loads(ThingDescription.objects.to_json())
+        things_obj = ThingDescription.objects(thing_type=thing_type) if thing_type else ThingDescription.objects.all()
+
+        local_things = json.loads(things_obj.to_json())
 
         if local_things is not None:
             thing_list.extend(local_things)
@@ -563,6 +380,13 @@ def search():
         for thing in thing_list:
             if thing["thing_id"] not in thing_id_set and (thing_id is None or thing["thing_id"] == thing_id):
                 thing_id_set.add(thing["thing_id"])
+                if 'timestamps' in thing:
+                    thing.pop('timestamps')
+                if 'url' in thing:
+                    response = requests.get(thing['url'])
+                    for attr in response.json():
+                        if attr not in thing:
+                            thing[attr] = response.json()[attr]
                 result_list.append(thing)
         return jsonify(result_list), 200
 
@@ -590,7 +414,6 @@ def search():
 
 @api.route('/jwt', methods=['GET'])
 def get_jwt():
-
     """Generate jwt of the requested thing with minimal inforamtion in the payload`
 
     Args:
@@ -604,13 +427,13 @@ def get_jwt():
     """
 
     thing_id = request.args.get('thing_id')
+    if not user.get_id():
+        return "Please login", 400
     username = user.get_username()
     timestamp = datetime.now().timestamp()
     payload = {"thing_id": thing_id, "username": username, "timestamp": timestamp}
     if not thing_id:
         return "Invalid input", 400
-    if not username:
-        return "Please login", 400
 
     encoded_jwt, priv_key, pub_key = generate_jwt(payload)
     # TODO: save priv_key and pub_key in server
@@ -618,7 +441,7 @@ def get_jwt():
     jwt_json = payload.copy()
     jwt_json['encoding'] = str(encoded_jwt)
     return jsonify(jwt_json), 200
-        
+
 
 @api.route('/delete', methods=['DELETE'])
 def delete():
@@ -640,7 +463,7 @@ def delete():
     location = request.args.get('location')
     thing_id = request.args.get('thing_id')
     if not location or not thing_id or not location.strip() or not location.strip():
-        return ('', 200)
+        return '', 200
 
     location = location.strip()
     thing_id = thing_id.strip()
@@ -735,90 +558,6 @@ def relocate():
     return "", response.status_code
 
 
-def deduplicate_by_id(thing_list):
-    """Deduplicate the thing description list according to its 'thing_id' field
-
-    Args:
-        thing_list (list): the list of thing description
-    Returns:
-        list: the deduplicated thing description list
-    """
-    thing_ids = set()
-    unique_thing_list = []
-    for thing in thing_list:
-        if thing["thing_id"] not in thing_ids:
-            thing_ids.add(thing["thing_id"])
-            unique_thing_list.append(thing)
-    return unique_thing_list
-
-def get_data_field(thing_description, data_field_list):
-    """Get the field specified by 'data_field_list' from each thing description
-
-    Args:
-        data_field_list(list): list of str that specified the hierarchical field names
-            For example, if the parameter value is ['foo', 'bar', 'foobar'], then this
-            function will try to get thing_description['foo']['bar']['foobar'] and return the value
-            If any of the field does not exist, an error will occur
-    Returns:
-        object: the content specified by the data field
-    """
-    for data_field in data_field_list:
-        thing_description = thing_description[data_field]
-    return thing_description
-
-def get_compressed_list(thing_list, operation, data_field):
-    """Get a compressed version of thing list input, keeping only thing_id and 'data_field'
-
-    Args:
-        thing_list(list): the list of thing description
-        operation(str): one of the five aggregation operations
-        data_field(str): property names. If it contains hierarchical property, then seperate each part using dot '.'
-
-    Returns:
-        list: compressed version of the input thing list
-    """
-    if operation == "COUNT":
-        return list(map(lambda item: {"thing_id" : item["thing_id"]}, thing_list))
-
-
-    data_field_list = data_field.split(".")
-    def compress_function(thing_description):
-        return_thing_desc = {"thing_id" : thing_description["thing_id"]}
-        try:
-            return_thing_desc["_query_data"] = thing_description["_query_data"] if "_query_data" in thing_description else get_data_field(thing_description, data_field_list)
-        except:
-            return None
-
-        return return_thing_desc
-
-    return list(filter(lambda item: item is not None, map(compress_function, thing_list)))
-
-def get_final_aggregation(thing_list, operation):
-    """Generate the HTTP response content according to the operation and the result thing list
-
-    Args:
-        thing_list(list): the list of thing description
-        operation(str): one of the five aggregation operations
-
-    Returns:
-        dict: formatted result containing the aggregation data
-    """
-    if operation != "COUNT" and len(thing_list) == 0:
-        return {"operation": operation, "result": "unknown"}
-
-    result = {"operation": operation}
-    if operation == "COUNT":
-        result["result"] = len(thing_list)
-    elif operation == "MIN":
-        result["result"] = min([thing_description["_query_data"] for thing_description in thing_list])
-    elif operation == "MAX":
-        result["result"] = max([thing_description["_query_data"] for thing_description in thing_list])
-    elif operation == "AVG":
-        result["result"] = sum([thing_description["_query_data"] for thing_description in thing_list]) / len(thing_list)
-    elif operation == "SUM":
-        result["result"] = sum([thing_description["_query_data"] for thing_description in thing_list])
-    return result
-
 @api.route('/custom_query', methods=['GET'])
 def custom_query():
     """Return all thing descriptions from the target directory and its descandant directories that satisfy the filter conditions
@@ -837,16 +576,17 @@ def custom_query():
         script_json = json.loads(script)
     except:
         return jsonify({"error": "Invalid input format"}), 400
-    
+
     SCRIPT_OPERATION = ["SUM", "AVG", "MIN", "MAX", "COUNT"]  # Allowed operation of the customized script query
 
     # check input combination: type and operation are required
     if "operation" not in script_json or "type" not in script_json or type(script_json["operation"]) != str:
         return jsonify(ERROR_JSON), 400
-    
+
     script_json["operation"] = script_json["operation"].upper()
-    
-    if script_json["operation"] not in SCRIPT_OPERATION or (script_json["operation"] != "COUNT" and "data" not in script_json):
+
+    if script_json["operation"] not in SCRIPT_OPERATION or (
+            script_json["operation"] != "COUNT" and "data" not in script_json):
         return jsonify(ERROR_JSON), 400
 
     # 2. Clean parameters
@@ -861,7 +601,7 @@ def custom_query():
     if location == local_server_name:
         operation = script_json["operation"].strip()
         thing_type = script_json["type"].strip()
-        
+
         filter_map = {}
         # add geographical filter condition
         if "polygon" in filters and type(filters["polygon"]) == list and len(filters["polygon"]) >= 3:

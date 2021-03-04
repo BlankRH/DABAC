@@ -3,7 +3,8 @@ Classes defined in this file are used with Mongodb ORM library mongoengine
 For more information, Please refer to its website: http://mongoengine.org/
 """
 from mongoengine import DynamicDocument
-from mongoengine import StringField, IntField, ListField
+from mongoengine import StringField, IntField, ListField, DateTimeField, DictField
+
 
 class ThingDescription(DynamicDocument):
     """ORM class of Thing Description in the mongodb
@@ -13,6 +14,7 @@ class ThingDescription(DynamicDocument):
     thing_id = StringField(db_field='thing_id',
                            required=True, unique=True, max_length=160)
     publicity = IntField(db_field='publicity', default=0)
+    timestamps = DictField(ListField(DateTimeField()))
 
     meta = {
         'collection': 'td',

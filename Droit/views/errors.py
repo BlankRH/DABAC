@@ -4,6 +4,7 @@ Define the error pages for the project
 
 from flask import render_template
 
+
 def register_error_page(app):
     @app.errorhandler(404)
     def page_not_found(e):

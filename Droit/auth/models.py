@@ -41,6 +41,7 @@ class UserAccountTypeEnum(enum.Enum):
     local = 0
     oidc = 1
 
+
 class Policy(auth_db.Model):
     __tablename__ = 'Policy'
     policy_id = auth_db.Column(auth_db.Integer, nullable = False , primary_key = True)
@@ -156,6 +157,9 @@ class User(auth_db.Model, UserMixin):
 
     def get_policy(self):
         return self.policy
+
+    def get_location(self):
+        return self.location
 
 
 class OAuth2Client(auth_db.Model, OAuth2ClientMixin):
