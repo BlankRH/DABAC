@@ -8,7 +8,7 @@ from urllib.parse import urljoin
 from datetime import datetime, timedelta
 import time
 from py_abac.pdp import EvaluationAlgorithm
-from .models import DirectoryNameToURL, TargetToChildName, ThingDescription
+from .models import DirectoryNameToURL, TargetToChildName, ThingFrequency
 from flask_login import current_user
 from .auth.models import auth_user_attr_default, auth_server_attr_default
 from .auth import User, AuthAttribute
@@ -167,8 +167,27 @@ def is_request_allowed(request: flask.Request) -> bool:
 
     class GeoAttributeProvider(AttributeProvider):
         def get_attribute_value(self, ace: str, attribute_path: str, ctx: 'EvaluationContext'):
-            if ace == "subject" and attribute_path == "$.geo":
-                return [-74, 40]
+            if ace == "subject" and attribute_path[:5] == "$.geo":
+                str = attribute_path[6:-1]
+                point_list = str.split(' ')
+                polygon_list = []
+                for point in point_list:
+                    tmp = point.split(',')
+                    x = int(tmp[0])
+                    y = int(tmp[1])
+                    polygon_list.append((x,y))
+                polygon = Polygon(polygon_list)
+
+                auth_attributes = get_auth_attributes()
+                auth_user_attributes = auth_attributes[0]
+                position = auth_user_attributes.get('position', None)
+                print("position: ", position)
+                #if location is None:
+                #    location = (0,0)
+                point = Point(position)
+
+                return int(polygon.contains(point))
+
             return None
 
     class TimespanAttributeProvider(AttributeProvider):
@@ -176,16 +195,13 @@ def is_request_allowed(request: flask.Request) -> bool:
             if ace == 'resource' and attribute_path[:10] == '$.timespan':
                 timespan = int(attribute_path.partition(': ')[2])
                 start = datetime.utcnow() - timedelta(seconds=timespan)
-                thing_obj = ThingDescription.objects(thing_id=thing_id).first()
+                thing_obj = ThingFrequency.objects(thing_id=thing_id).first()
                 cnt = 0
-                print("start: ", str(start))
                 if str(user_id) in thing_obj.timestamps:
                     for timestamp in thing_obj.timestamps[str(user_id)][::-1]:
-                        print(timestamp)
                         if timestamp < start:
                             break
                         cnt += 1
-                    print(cnt)
                     return cnt
                 else:
                     return 0
@@ -208,7 +224,8 @@ def is_request_allowed(request: flask.Request) -> bool:
     client = MongoClient()
     storage = MongoStorage(client, db_name=policy_location)
     pdp = PDP(storage, EvaluationAlgorithm.HIGHEST_PRIORITY,
-              [TimestampAttributeProvider(), TimespanAttributeProvider(), OtherAttributeProvider()])
+              [TimestampAttributeProvider(), TimespanAttributeProvider(), GeoAttributeProvider(),
+               OtherAttributeProvider()])
 
     access_request_json = {
         "subject": {
@@ -261,6 +278,8 @@ def clear_auth_attributes():
 
 def get_auth_attributes():
     print("(get_auth_attributes)")
+    if current_user.is_anonymous:
+        return "Please Login", 400
     user_id = current_user.get_user_id()
     auth_attribute = AuthAttribute.query.filter_by(id=user_id).first()
     auth_user_attributes = auth_attribute.get_user_attributes()

@@ -8,7 +8,7 @@ from Droit.auth.oauth2 import oauth, config_oauth, initiate_providers
 from config import dev_config
 
 @click.command()
-@click.option('--init-db', default=True, type=bool, help="Clean previous data and insert URL mappings into database.\nBy default it's True")
+@click.option('--init-db', default=False, type=bool, help="Clean previous data and insert URL mappings into database.\nBy default it's True")
 @click.option('--debug', default=True, type=bool, help="Use Debug Mode.\nBy default it's True.")
 @click.option('--host', default='localhost', type=str, help="The host that this app is running on.\n By default it is localhost")
 @click.option('--level', default='level1', type=click.Choice(['level1','level2a','level2b','level3aa','level3ab','level4aba','level4abb','level5abba','level5abbb'], case_sensitive=False), 
@@ -42,7 +42,8 @@ def main(level, init_db, debug, host):
         init_dir_to_url(level)
         init_target_to_child_name(level)
     app.run(debug = debug, host= host, port= app.config["PORT"])
-    
+
+
 if __name__ == "__main__":
     main()
     

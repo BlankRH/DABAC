@@ -28,7 +28,7 @@ auth_db = SQLAlchemy()
 """
 Lists of attributes that can be accessed from user provider or external oauth2 server
 """
-auth_user_attr_default = {"address": None, "phone_number": None}
+auth_user_attr_default = {"address": None, "phone_number": None, "position": None}
 auth_server_attr_default = {"temperature": None, "rainfall": None}
 
 
@@ -157,9 +157,6 @@ class User(auth_db.Model, UserMixin):
 
     def get_policy(self):
         return self.policy
-
-    def get_location(self):
-        return self.location
 
 
 class OAuth2Client(auth_db.Model, OAuth2ClientMixin):

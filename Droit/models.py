@@ -14,7 +14,6 @@ class ThingDescription(DynamicDocument):
     thing_id = StringField(db_field='thing_id',
                            required=True, unique=True, max_length=160)
     publicity = IntField(db_field='publicity', default=0)
-    timestamps = DictField(ListField(DateTimeField()))
 
     meta = {
         'collection': 'td',
@@ -60,3 +59,9 @@ class TargetToChildName(DynamicDocument):
     target_name = StringField(db_field='targetLoc')
     child_name = StringField(db_field='childLoc')
     meta = {'collection': 'targetLoc_to_childLoc'}
+
+
+class ThingFrequency(DynamicDocument):
+    thing_id = StringField(db_field='thing_id',
+                           required=True, unique=True, max_length=160)
+    timestamps = DictField(ListField(DateTimeField()))

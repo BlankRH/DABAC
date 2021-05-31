@@ -13,6 +13,10 @@
         {% for scope in client_scope.split() %}
             {% if scope == "profile" or scope == "openid" %}
                 <h5>{{scope}}</h5>
+            {% elif scope == "position"%}
+                <h5>{{scope}}</h5><br>
+                <h5><input type="input" value="{{position_x}}" name="position_x">x</h5><br>
+                <h5><input type="input" value="{{position_y}}" name="position_y">y</h5><br>
             {% else %}
                 <h5><input type="checkbox" value="{{scope}}" name="checks" checked>&nbsp;{{scope}}</h5><br>
             {% endif %}

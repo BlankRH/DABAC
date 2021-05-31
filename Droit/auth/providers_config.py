@@ -69,9 +69,9 @@ providers_config = {
 }
 
 oauth2_server_config = {
-    "server_url": "http://127.0.0.1:5100",
-    "client_id": "1WCyaYBeXRKDM4Vvf1nUseJm",
-    "client_secret": "dyaIWavG7IdgkrdkiX8BwNKvRaxMru6NjnQcAn8Wb5JOFA4z",
+    "server_url": "https://127.0.0.1:5100",
+    "client_id": "rLhBuTRkZc0Y6oKMwYXQQHR4",
+    "client_secret": "LLFj4Ae5RPx9X8Wv3tQutKRiGbyCq7ktIr7G9EDUuPMoAODB",
     "grant_type": "authorization_code",
     "response_type": "code",
     "scope": "weather",

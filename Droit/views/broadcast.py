@@ -23,7 +23,7 @@ def delete_local_thing_description(thing_id: str):
     """
     delete_thing = ThingDescription.objects(thing_id=thing_id).first()
     if delete_thing is None:
-        return
+        return 404
     delete_thing.delete()
     # 1. if the publicity is larger than 0, it needs to recursively delete the thing in parent's directory
     if delete_thing.publicity > 0:

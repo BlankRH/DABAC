@@ -376,7 +376,16 @@ def info_authorize():
         # scope authorization granted
         if 'confirm' in request.form:
             # scope check boxes (openid is required)
+
+            if 'position_x' in request.form and 'position_y' in request.form:
+                position_x = request.form['position_x']
+                position_y = request.form['position_y']
+                position = (int(position_x), int(position_y))
+                set_auth_user_attr('position', position)
+
             scope_checks = request.form.getlist('checks')
+            if not scope_checks:
+                return redirect(url_for('dashboard.query'))
             print("scope_checks scope_checks scope_checks scope_checks scope_checks")
             print("scope_checks: ", scope_checks)
             session['add_user_scope'] = scope_check(add_user_scope, scope_checks)
@@ -422,7 +431,7 @@ def server_auth_request(server_config):
     server_url = server_config["server_url"]
     client_id = server_config["client_id"]
     scope = server_config["scope"]
-    print ("current_user: ", current_user.get_username())
+    print("current_user: ", current_user.get_username())
     redirect_url = server_url + "/oauth/authorize?" \
                    + "response_type=" + server_config["response_type"] \
                    + "&client_id=" + client_id + "&scope=" + scope + "&username=" \

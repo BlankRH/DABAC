@@ -4,6 +4,7 @@ const POLICY_DECISION_URL = '/api/policy_decision';
 const ATTRIBUTE_AUTH_URL = '/api/policy_attribute_auth'
 const POLICY_DELETION_URL = '/api/delete_policy';
 const JWT_API = '/api/jwt';
+const JWT_SEND_API = '/api/jwt_send';
 const SEARCH_API = '/api/search';
 const DELETE_API = '/api/delete';
 const RELOCATE_API = '/api/relocate';

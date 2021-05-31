@@ -16,6 +16,7 @@ jsonFormatter.setJSONString(exampleFilterScript);
 const validOperation = ["SUM", "AVG", "COUNT", "MAX", "MIN"];
 
 $("#search").click(function () {
+    
     // 1. Check JSON Format
     if (jsonFormatter.getJSONString() == null) {
         show_prompt("Please input valid script format (JSON).");

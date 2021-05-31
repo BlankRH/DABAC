@@ -9,7 +9,7 @@ from flask import current_app as app
 from flask_login import current_user as user
 from py_abac import Policy
 from urllib.parse import urlencode
-from ..models import ThingDescription, DirectoryNameToURL, TypeToChildrenNames, TargetToChildName
+from ..models import ThingDescription, DirectoryNameToURL, TypeToChildrenNames, TargetToChildName, ThingFrequency
 from ..utils import get_target_url, is_json_request, clean_thing_description, add_policy_to_storage, \
     delete_policy_from_storage, is_policy_request, is_request_allowed, get_auth_attributes, set_auth_user_attr, \
     generate_jwt
@@ -74,11 +74,13 @@ def register():
         # remove it to avoid duplicate key error when creating new object
         registration_result = True
         thing_description.pop("publicity", None)
-        thing_description['timestamps'] = {}
-        new_td = ThingDescription(publicity=publicity, **thing_description)
         try:
+            new_td = ThingDescription(publicity=publicity, **thing_description)
             new_td.save()
-        except:
+            new_freq = ThingFrequency(thing_id=new_td.thing_id, timestamps={})
+            new_freq.save()
+        except Exception as e:
+            print(e)
             registration_result = False
 
         # 3b. push up thing description and update parent directory's aggregation data
@@ -161,8 +163,6 @@ def policy_attr_auth():
 
     client = MongoClient()
     storage = MongoStorage(client, db_name=policy_location)
-    add_user_scope = []
-    add_server_scope = []
     add_user_scope_str = ""
     add_server_scope_str = ""
     for p in storage.get_for_target("", str(thing_id), ""):
@@ -177,8 +177,8 @@ def policy_attr_auth():
             set_auth_user_attr("address", user.get_address())
         if not auth_user_attributes["phone_number"]:
             set_auth_user_attr("phone_number", user.get_phone())
-        add_user_scope_str = get_auth_scopes(add_user_scope, subject_rules, auth_user_attributes)
-        add_server_scope_str = get_auth_scopes(add_server_scope, context_rules, auth_server_attributes)
+        add_user_scope_str = get_auth_scopes([], subject_rules, auth_user_attributes)
+        add_server_scope_str = get_auth_scopes([], context_rules, auth_server_attributes)
     print("add_user_scope_str: ", add_user_scope_str)
     print("add_server_scope_str: ", add_server_scope_str)
 
@@ -199,8 +199,14 @@ def get_attr_list(policy_rules):
         rule_dict = {}
         for rule in policy_rules:
             rule_dict.update(rule)
-        return rule_dict.keys()
-    return policy_rules.keys()
+        res = rule_dict.keys()
+    else:
+        res = policy_rules.keys()
+    res = list(res)
+    for i, key in enumerate(res):
+        if key[:5] == '$.geo':
+            res[i] = 'position'
+    return res
 
 
 @api.route('/policy_decision', methods=['POST'])
@@ -223,16 +229,19 @@ def policy_decision():
     if is_request_allowed(request):
         if not current_user.is_anonymous:
             add_frequency(request.get_json()["thing_id"], str(current_user.get_user_id()))
-        return make_response("Request Succeed", 200)
+        td = ThingDescription.objects(thing_id=request.get_json()["thing_id"])
+        return jsonify(td), 200
     else:
         return jsonify({"id": user.get_id()}), 400
 
 
 def get_auth_scopes(auth_scope, attr_list, auth_attributes):
+    print("(get_auth_scopes)", auth_scope, attr_list, auth_attributes)
     for s in attr_list:
         attr_name = re.search("[a-zA-Z_]+", s).group().lower()
         if (attr_name not in auth_scope) and (attr_name in auth_attributes):
-            if not auth_attributes.get(attr_name, None):
+            # no auth data yet
+            if not auth_attributes[attr_name] or attr_name == 'position':
                 auth_scope.append(attr_name)
     return " ".join(auth_scope)
 
@@ -380,8 +389,6 @@ def search():
         for thing in thing_list:
             if thing["thing_id"] not in thing_id_set and (thing_id is None or thing["thing_id"] == thing_id):
                 thing_id_set.add(thing["thing_id"])
-                if 'timestamps' in thing:
-                    thing.pop('timestamps')
                 if 'url' in thing:
                     response = requests.get(thing['url'])
                     for attr in response.json():
@@ -437,10 +444,34 @@ def get_jwt():
 
     encoded_jwt, priv_key, pub_key = generate_jwt(payload)
     # TODO: save priv_key and pub_key in server
+    session['pub_key'] = pub_key
 
     jwt_json = payload.copy()
     jwt_json['encoding'] = str(encoded_jwt)
     return jsonify(jwt_json), 200
+
+
+@api.route('/jwt_send', methods=['POST'])
+def send_jwt():
+    if not is_json_request(request, ['jwt_token', 'url']):
+        return make_response("Invalid request", 400)
+    body = request.get_json()
+    target_url = body['url']
+    data = {
+        'jwt_token': body['jwt_token'][2:-1],
+        'pub_key': session.get('pub_key').decode()
+    }
+    try:
+        print(target_url)
+        response = requests.post(target_url, data=json.dumps(data))
+    except Exception as e:
+        print(e)
+        return make_response("Request Failed", 400)
+    if response.status_code == 200:
+        print(response.content)
+        return make_response("Successfully sent", 200)
+    else:
+        return make_response(response.content, 400)
 
 
 @api.route('/delete', methods=['DELETE'])
@@ -469,9 +500,10 @@ def delete():
     thing_id = thing_id.strip()
     local_server_name = app.config['HOST_NAME'] if 'HOST_NAME' in app.config else "Unknown"
     if location == local_server_name:
-        delete_local_thing_description(thing_id)
+        if delete_local_thing_description(thing_id) == 404:
+            return "Invalid thing id", 404
 
-        return "", 200
+        return "Deleted", 200
 
     # if not aiming at current directory, send a request to the correct target location
     target_url = get_target_url(location, url_for("api.delete"))
@@ -596,6 +628,7 @@ def custom_query():
     # here must be a deepcopy rather than a merely reference to the filed in script_json
     filters = copy.deepcopy(script_json["filter"]) if "filter" in script_json else {}
     data_field = script_json["data"] if "data" in script_json else None
+    time_range = {"start": script_json.get("start"), "end": script_json.get("end")}
 
     # 3. filter result.
     if location == local_server_name:
@@ -635,13 +668,13 @@ def custom_query():
         # [{id, properties, ..., ..}, {id, propertis..}, {}, {}]
         # COUNT: [{id1}, {id2}, {id3}, ...]
         # MIN,MAX,SUM,AVG: [{id, data: a}, {id, data: b}]
-        compressed_thing_list = get_compressed_list(thing_list, operation, data_field)
+        compressed_thing_list = get_compressed_list(thing_list, operation, data_field, time_range)
 
         # 4. return data
         # return the aggregation result if current directory is the root
         # otherwise return the compressed list
         if not is_sub_dir:
-            return jsonify(get_final_aggregation(compressed_thing_list, operation)), 200
+            return jsonify(get_final_aggregation(compressed_thing_list, operation, time_range)), 200
         else:
             return jsonify(compressed_thing_list), 200
 
