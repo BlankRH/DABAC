@@ -17,50 +17,24 @@
     ],
     "properties": {
         "property1": {
-            "description": "P7",
-            "forms": [
+            "description": "P1",
+            "data": [
                 {
-                    "href": "http:www.a.a",
-                    "contentType": "application/json",
-                    "op": [
-                        "readproperty"
-                    ]
+                    "data": 1,
+                    "start": 0,
+                    "end": 1
                 }
-            ]
-        },
-        "property2": {
-            "description": "P4",
+            ],
             "forms": [
                 {
-                    "href": "http:www.a.a",
-                    "contentType": "application/json",
-                    "op": [
-                        "readproperty"
-                    ]
-                }
-            ]
-        },
-        "property3": {
-            "description": "P3",
-            "forms": [
+                    "href": "http://127.0.0.1:6001/",
+                    "start": 1,
+                    "end": 2
+                },
                 {
-                    "href": "http:www.a.a",
-                    "contentType": "application/json",
-                    "op": [
-                        "readproperty"
-                    ]
-                }
-            ]
-        },
-        "property4": {
-            "description": "P7",
-            "forms": [
-                {
-                    "href": "http:www.a.a",
-                    "contentType": "application/json",
-                    "op": [
-                        "readproperty"
-                    ]
+                    "href": "http://127.0.0.1:6002/",
+                    "start": 2,
+                    "end": 3
                 }
             ]
         }

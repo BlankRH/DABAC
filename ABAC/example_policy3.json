@@ -1,8 +1,8 @@
-{"description": "Allow only ryan-liang@qq.com to access.",
+{"description": "Allow within polygon",
     "effect": "allow",
     "rules": {
-        "subject": [{"email": {"condition": "Equals", "value": "ryan-liang@qq.com"}}],
-        "resource": {"id": {"condition": "RegexMatch", "value": ".*"}},
+        "subject": [{"id": {"condition": "RegexMatch", "value": ".*"}}],
+        "resource": [{"$.timespan: 100": {"condition": "Lte", "value": 1}}],
         "action": [{"$.method": {"condition": "Equals", "value": "create"}},
                    {"$.method": {"condition": "Equals", "value": "delete"}},
                    {"$.method": {"condition": "Equals", "value": "get"}}],
@@ -11,3 +11,4 @@
     "targets": {},
     "priority": 1
 }
+

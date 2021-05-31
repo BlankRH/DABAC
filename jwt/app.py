@@ -1,6 +1,7 @@
-from flask import Flask, request, make_response, jsonify, session
-import jwt
 import json
+
+import jwt
+from flask import Flask, request, make_response, jsonify, session
 
 app = Flask(__name__)
 
@@ -21,5 +22,6 @@ def index():
         return make_response("Invalid jwt token", 400)
     session['data'] = decoded_token
     return make_response(jsonify(decoded_token), 200)
+
 
 app.run()

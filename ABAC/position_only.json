@@ -1,0 +1,23 @@
+{"description": "Require other attributes.",
+    "effect": "allow",
+    "rules": {
+        "subject": {
+        },
+        "resource": {"id": {"condition": "RegexMatch", "value": ".*"}},
+        "action": [{"$.method": {"condition": "Equals", "value": "create"}},
+                   {"$.method": {"condition": "Equals", "value": "delete"}},
+                   {"$.method": {"condition": "Equals", "value": "get"}}],
+        "context": {
+            "$.position": {
+                "condition": "Lte",
+                "value": 80
+            },
+            "$.rainfall": {
+                "condition": "Gte",
+                "value": 7
+            }
+        }
+    },
+    "targets": {},
+    "priority": 1
+}

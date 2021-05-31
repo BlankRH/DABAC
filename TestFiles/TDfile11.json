@@ -1,0 +1,86 @@
+{
+    "@context": "https://www.w3.org/2019/wot/td/v1",
+    "id": "urn:dev:wot:com:example:servient:11",
+    "title": "e4DExG",
+    "@type": "thing",
+    "securityDefinitions": {
+        "basic_sc": {
+            "scheme": "basic",
+            "in": "header"
+        },
+        "nosec_sc": {
+            "scheme": "nosec"
+        }
+    },
+    "security": [
+        "nosec_sc"
+    ],
+    "properties": {
+        "property1": {
+            "description": "P1",
+            "data": [
+                {
+                    "data": 1,
+                    "start": 0,
+                    "end": 1
+                }
+            ],
+            "forms": [
+                {
+                    "href": "http://127.0.0.1:6001/",
+                    "start": 1,
+                    "end": 2
+                },
+                {
+                    "href": "http://127.0.0.1:6002/",
+                    "start": 2,
+                    "end": 5
+                }
+            ]
+        }
+    },
+    "actions": {
+        "action1": {
+            "description": "A5",
+            "forms": [
+                {
+                    "href": "http:www.a.a",
+                    "contentType": "application/json",
+                    "op": [
+                        "invokeaction"
+                    ]
+                }
+            ],
+            "safe": false,
+            "idempotent": false
+        },
+        "action2": {
+            "description": "A1",
+            "forms": [
+                {
+                    "href": "http:www.a.a",
+                    "contentType": "application/json",
+                    "op": [
+                        "invokeaction"
+                    ]
+                }
+            ],
+            "safe": false,
+            "idempotent": false
+        }
+    },
+    "events": {
+        "event1": {
+            "description": "This is event 3",
+            "forms": [
+                {
+                    "href": "http:www.a.a",
+                    "contentType": "application/json",
+                    "op": [
+                        "subscribeevent"
+                    ]
+                }
+            ]
+        }
+    }
+}

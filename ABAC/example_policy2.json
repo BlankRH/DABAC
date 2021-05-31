@@ -1,7 +1,7 @@
 {"description": "Allow only ryan-liang@qq.com to access.",
     "effect": "allow",
     "rules": {
-        "subject": [{"email": {"condition": "Equals", "value": "ryan-liang@qq.com"}}],
+        "subject": [{"$.email": {"condition": "Equals", "value": "jh4192@columbia.edu"}}],
         "resource": {"id": {"condition": "RegexMatch", "value": ".*"}},
         "action": [{"$.method": {"condition": "Equals", "value": "create"}},
                    {"$.method": {"condition": "Equals", "value": "delete"}},

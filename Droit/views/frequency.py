@@ -1,5 +1,6 @@
-from ..models import ThingFrequency
 import datetime
+
+from ..models import ThingFrequency
 
 
 def add_frequency(thing_id, user_id):

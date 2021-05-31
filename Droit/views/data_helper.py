@@ -1,5 +1,5 @@
-import json
 import requests
+
 
 def deduplicate_by_id(thing_list):
     """Deduplicate the thing description list according to its 'thing_id' field
@@ -19,6 +19,15 @@ def deduplicate_by_id(thing_list):
 
 
 def get_time_range_data(all_data, time_range_start, time_range_end):
+    '''Get the time range specification
+
+    Args:
+        all_data: contains the start and end of request time range
+        time_range_start: an integer representing the start timestamp
+        time_range_end: an integer representing the end timestamp
+    Returns:
+        res: the list containing time ranges requested
+    '''
     res = []
     for data in all_data:
         start = data['start']
@@ -81,15 +90,16 @@ def get_compressed_list(thing_list, operation, data_field, time_range):
         list: compressed version of the input thing list
     """
     if operation == "COUNT":
-        return list(map(lambda item: {"thing_id" : item["thing_id"]}, thing_list))
+        return list(map(lambda item: {"thing_id": item["thing_id"]}, thing_list))
 
     data_field_list = data_field.split(".")
 
     def compress_function(thing_description):
-        return_thing_desc = {"thing_id" : thing_description["thing_id"]}
+        return_thing_desc = {"thing_id": thing_description["thing_id"]}
         try:
             return_thing_desc["_query_data"] = thing_description["_query_data"] \
-                if "_query_data" in thing_description else get_data_field(thing_description, data_field_list, time_range)
+                if "_query_data" in thing_description else get_data_field(thing_description, data_field_list,
+                                                                          time_range)
         except:
             return None
 
@@ -99,6 +109,8 @@ def get_compressed_list(thing_list, operation, data_field, time_range):
 
 
 def _weighted_sum(thing_list):
+    '''get weighted sum of attribute
+    '''
     s = 0
     start = float('inf')
     end = -1
@@ -111,6 +123,8 @@ def _weighted_sum(thing_list):
 
 
 def _extract_data(thing_list):
+    '''extract data from thing_list
+    '''
     res = []
     for thing_description in thing_list:
         for data in thing_description["_query_data"]:
@@ -145,6 +159,5 @@ def get_final_aggregation(thing_list, operation):
         result["result"] = s / (len(thing_list) * (end - start))
     elif operation == "SUM":
         result["result"], _, _ = _weighted_sum(thing_list)
-    print(result)
 
     return result

@@ -1,7 +1,7 @@
 {"description": "Allow within polygon",
     "effect": "allow",
     "rules": {
-        "subject": [{"$.geo[-100,100 100,100 -100,100 -100,-100]": {"condition": "Equals", "value": 1}}],
+        "subject": {"$.geo#-100,100 -100,-100 100,-100 100,100#": {"condition": "Eq", "value": 1}},
         "resource": {},
         "action": [{"$.method": {"condition": "Equals", "value": "create"}},
                    {"$.method": {"condition": "Equals", "value": "delete"}},

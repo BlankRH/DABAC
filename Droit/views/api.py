@@ -1,27 +1,27 @@
-import json
 import copy
-import requests
-import uuid
+import json
 import re
-import jwt
-from flask import Blueprint, request, url_for, redirect, Response, make_response, jsonify, session, render_template
+import uuid
+from datetime import datetime
+from urllib.parse import urlencode
+
+import requests
+from flask import Blueprint, request, url_for, make_response, jsonify, session
 from flask import current_app as app
+from flask_login import current_user
 from flask_login import current_user as user
 from py_abac import Policy
-from urllib.parse import urlencode
-from ..models import ThingDescription, DirectoryNameToURL, TypeToChildrenNames, TargetToChildName, ThingFrequency
+from py_abac.storage.mongo import MongoStorage
+from pymongo import MongoClient
+
+from .broadcast import delete_local_thing_description, push_up_things, parent_aggregation, get_children_result
+from .data_helper import deduplicate_by_id, get_compressed_list, get_final_aggregation
+from .frequency import add_frequency
+from ..auth.models import auth_db, Policy
+from ..models import ThingDescription, DirectoryNameToURL, TypeToChildrenNames, ThingFrequency
 from ..utils import get_target_url, is_json_request, clean_thing_description, add_policy_to_storage, \
     delete_policy_from_storage, is_policy_request, is_request_allowed, get_auth_attributes, set_auth_user_attr, \
     generate_jwt
-from flask_login import current_user
-from pymongo import MongoClient
-from py_abac.storage.mongo import MongoStorage
-from ..auth.models import auth_db, Policy
-from datetime import datetime
-
-from .frequency import add_frequency
-from .broadcast import delete_local_thing_description, push_up_things, parent_aggregation, get_children_result
-from .data_helper import deduplicate_by_id, get_compressed_list, get_final_aggregation
 
 ERROR_JSON = {"error": "Invalid request."}
 ERROR_POLICY = {"error": "Invalid policy."}
@@ -436,14 +436,15 @@ def get_jwt():
     thing_id = request.args.get('thing_id')
     if not user.get_id():
         return "Please login", 400
+
     username = user.get_username()
     timestamp = datetime.now().timestamp()
     payload = {"thing_id": thing_id, "username": username, "timestamp": timestamp}
     if not thing_id:
         return "Invalid input", 400
 
+    # generate jwt
     encoded_jwt, priv_key, pub_key = generate_jwt(payload)
-    # TODO: save priv_key and pub_key in server
     session['pub_key'] = pub_key
 
     jwt_json = payload.copy()
@@ -455,20 +456,22 @@ def get_jwt():
 def send_jwt():
     if not is_json_request(request, ['jwt_token', 'url']):
         return make_response("Invalid request", 400)
+
     body = request.get_json()
     target_url = body['url']
     data = {
         'jwt_token': body['jwt_token'][2:-1],
         'pub_key': session.get('pub_key').decode()
     }
+
+    # send and get response
     try:
-        print(target_url)
         response = requests.post(target_url, data=json.dumps(data))
     except Exception as e:
-        print(e)
         return make_response("Request Failed", 400)
+
+    # if successful
     if response.status_code == 200:
-        print(response.content)
         return make_response("Successfully sent", 200)
     else:
         return make_response(response.content, 400)

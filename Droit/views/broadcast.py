@@ -1,8 +1,9 @@
 import json
-import requests
-from flask import url_for
-from flask import current_app as app
 from urllib.parse import urljoin, urlencode
+
+import requests
+from flask import current_app as app
+from flask import url_for
 
 from ..models import ThingDescription, DirectoryNameToURL, TypeToChildrenNames, TargetToChildName
 
@@ -174,4 +175,3 @@ def get_children_result(thing_type: str, api: str, query_string: str) -> list:
             else:
                 result_list.append(child_result)
     return result_list
-

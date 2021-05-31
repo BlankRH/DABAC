@@ -1,7 +1,7 @@
 {
     "@context": "https://www.w3.org/2019/wot/td/v1",
-    "id": "urn:dev:wot:com:example:servient:40",
-    "title": "NpUD9J",
+    "id": "urn:dev:wot:com:example:servient:41",
+    "title": "NpUD9K",
     "@type": "bus",
     "securityDefinitions": {
         "basic_sc": {
@@ -30,7 +30,7 @@
         },
         "geo": {
             "coordinates": [
-                -74.08931,
+                74.08931,
                 40.76017
             ],
             "forms": [

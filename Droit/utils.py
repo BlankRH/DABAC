@@ -1,24 +1,25 @@
 """
 Functions declared in this file are helper functions that can be shared by all other modules
 """
+import re
+from datetime import datetime, timedelta
+from urllib.parse import urljoin
+
 import flask
 import jwcrypto.jwk as jwk
 import jwt
-from urllib.parse import urljoin
-from datetime import datetime, timedelta
-import time
-from py_abac.pdp import EvaluationAlgorithm
-from .models import DirectoryNameToURL, TargetToChildName, ThingFrequency
 from flask_login import current_user
-from .auth.models import auth_user_attr_default, auth_server_attr_default
-from .auth import User, AuthAttribute
-from pymongo import MongoClient
-from py_abac.storage.mongo import MongoStorage
 from py_abac import PDP, Policy, AccessRequest
+from py_abac.pdp import EvaluationAlgorithm
 from py_abac.provider.base import AttributeProvider
-import re
+from py_abac.storage.mongo import MongoStorage
+from pymongo import MongoClient
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+
+from .auth import User, AuthAttribute
+from .auth.models import auth_user_attr_default, auth_server_attr_default
+from .models import DirectoryNameToURL, TargetToChildName, ThingFrequency
 
 
 def is_json_request(request: flask.Request, properties: list = []) -> bool:
@@ -101,8 +102,8 @@ def get_target_url(location: str, api: str = "") -> str:
     return target_url
 
 
-def add_policy_to_storage(policy: dict, location: str) -> bool :
-    #json = request.get_json()
+def add_policy_to_storage(policy: dict, location: str) -> bool:
+    # json = request.get_json()
     policy = Policy.from_json(policy)
     client = MongoClient()
     storage = MongoStorage(client, db_name=location)
@@ -113,7 +114,7 @@ def add_policy_to_storage(policy: dict, location: str) -> bool :
     return True
 
 
-def delete_policy_from_storage(request : flask.Request)  -> bool :
+def delete_policy_from_storage(request: flask.Request) -> bool:
     """Delete a policy from storage. 
 
     Args:
@@ -132,7 +133,7 @@ def delete_policy_from_storage(request : flask.Request)  -> bool :
     storage = MongoStorage(client, db_name=location)
     storage.delete(uid)
     return True
-    
+
 
 # check if the request is allowed by policy in the current level
 def is_request_allowed(request: flask.Request) -> bool:
@@ -157,7 +158,7 @@ def is_request_allowed(request: flask.Request) -> bool:
     except:
         user_id = ""
         user_email = ""
-    
+
     class TimestampAttributeProvider(AttributeProvider):
         def get_attribute_value(self, ace, attribute_path, ctx):
             if attribute_path == "$.timestamp":
@@ -175,14 +176,14 @@ def is_request_allowed(request: flask.Request) -> bool:
                     tmp = point.split(',')
                     x = int(tmp[0])
                     y = int(tmp[1])
-                    polygon_list.append((x,y))
+                    polygon_list.append((x, y))
                 polygon = Polygon(polygon_list)
 
                 auth_attributes = get_auth_attributes()
                 auth_user_attributes = auth_attributes[0]
                 position = auth_user_attributes.get('position', None)
                 print("position: ", position)
-                #if location is None:
+                # if location is None:
                 #    location = (0,0)
                 point = Point(position)
 
@@ -233,11 +234,11 @@ def is_request_allowed(request: flask.Request) -> bool:
             "attributes": {"email": str(user_email)}
         },
         "resource": {
-            "id": str(thing_id), 
+            "id": str(thing_id),
             "attributes": {"thing_type": request.get_json().get("thing_type", None)}
         },
         "action": {
-            "id": "", 
+            "id": "",
             "attributes": {"method": "get"}
         },
         "context": {
@@ -299,7 +300,6 @@ def is_policy_request(policy: dict, keys: list = []) -> bool:
 
 
 def generate_jwt(payload):
-
     """Encode given payload to jwt, return encoded jwt, private key, public key
 
     Args:
@@ -317,7 +317,7 @@ def generate_jwt(payload):
     return encoded_jwt, priv_key, pub_key
 
 
-def jwt_to_thing(encoded_jwt, priv_key, algorithm = 'RS256'):
+def jwt_to_thing(encoded_jwt, priv_key, algorithm='RS256'):
     """Decodes the jwt with private key
 
     Args:
@@ -328,4 +328,4 @@ def jwt_to_thing(encoded_jwt, priv_key, algorithm = 'RS256'):
         decoded jwt(json)
 
     """
-    return jwt.decode(encoded_jwt,priv_key, algorithm = algorithm)
+    return jwt.decode(encoded_jwt, priv_key, algorithm=algorithm)

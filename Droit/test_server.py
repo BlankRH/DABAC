@@ -1,6 +1,6 @@
+import jwt
 from flask import Flask
 from flask import request
-import jwt
 
 app = Flask(__name__)
 
