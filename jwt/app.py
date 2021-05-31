@@ -1,7 +1,5 @@
 from website.app import create_app
-import os
 
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
 
 app = create_app({
     'SECRET_KEY': 'secret',
@@ -12,4 +10,4 @@ app = create_app({
 
 
 if __name__ == "__main__":
-    app.run(port=5100, ssl_context='adhoc')
+    app.run(port=5100)

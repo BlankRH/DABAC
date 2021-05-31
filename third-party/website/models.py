@@ -12,12 +12,20 @@ db = SQLAlchemy()
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(40), unique=True)
+    position_X = db.Column(db.Float)
+    position_Y = db.Column(db.Float)
 
     def __str__(self):
         return self.username
 
     def get_user_id(self):
         return self.id
+
+    def get_user_position_x(self):
+        return self.position_X
+
+    def get_user_position_y(self):
+        return self.position_Y
 
     def check_password(self, password):
         return password == 'valid'
@@ -47,13 +55,20 @@ class OAuth2Token(db.Model, OAuth2TokenMixin):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(
         db.Integer, db.ForeignKey('user.id', ondelete='CASCADE'))
-    user = db.relationship('User')
+    uid_user = db.relationship('User', foreign_keys=[user_id])
     temperature = db.Column(
         db.Integer, db.ForeignKey('weather.temperature', ondelete='CASCADE'))
     temp_weather = db.relationship('Weather', foreign_keys=[temperature])
     rainfall = db.Column(
         db.Integer, db.ForeignKey('weather.rainfall', ondelete='CASCADE'))
     rain_weather = db.relationship('Weather', foreign_keys=[rainfall])
+    position_X = db.Column(
+        db.Float, db.ForeignKey('user.position_X', ondelete='CASCADE'))
+    position_x_user = db.relationship('User', foreign_keys=[position_X])
+    position_Y = db.Column(
+        db.Float, db.ForeignKey('user.position_Y', ondelete='CASCADE'))
+    position_y_user = db.relationship('User', foreign_keys=[position_Y])
+
 
     def is_refresh_token_active(self):
         if self.revoked:

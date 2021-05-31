@@ -95,6 +95,9 @@ def authorize():
     username = request.args.get("username") 
     # receive the username and don't need additional authentication for simplification
     user = User.query.filter_by(username=username).first()
+
+    weather = Weather(username=username, temperature=10, rainfall=10)
+    print(weather)
     """
     user = current_user()
     # if user log status is not true (Auth server), then to log it in
